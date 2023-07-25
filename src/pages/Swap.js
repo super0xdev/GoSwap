@@ -1,6 +1,6 @@
 import '../App.css';
 import {BiSolidWalletAlt} from "react-icons/bi"
-import {AiFillCaretDown, AiOutlineReload, AiOutlineSwap} from "react-icons/ai"
+import {AiFillCaretDown, AiOutlineReload, AiOutlineSetting, AiOutlineSwap} from "react-icons/ai"
 import {MdSwapVert} from "react-icons/md"
 import React, {useEffect, useState, useCallback} from 'react';
 import { useWallet } from "../context/WalletContext";
@@ -8,6 +8,7 @@ import { web3Modal } from "../helpers/web3Modal";
 import Web3 from "web3";
 import Quoter from '@uniswap/v3-periphery/artifacts/contracts/lens/Quoter.sol/Quoter.json'
 import TokenLists from '../components/TokenListModal/TokenLists';
+import Setting from '../components/SettingModal/Setting';
 import Slippage from '../components/Swap/Slippage';
 import GasSetting from '../components/Swap/GasSetting';
 import tokenETHList from "../tokenETHList.json";
@@ -20,10 +21,11 @@ const WETH = {addr: '0xB4FBF271143F4FBf7B91A5ded31805e42b2208d6', decimal: 18};
 
 function Swap() {
     const [web3, setWeb3] = useState();
-    const [curAcount, setCurAcount] = useState(null);
+    const [curAcount, setCurAcount] = useState('');
     const [injectedProvider, setInjectedProvider] = useState();
     const [quoterContract, setQuoterContract] = useState();
     const [isShowModal, setIsShowModal] = useState(false);
+    const [isSettingModal, setIsSettingModal] = useState(false);
     const [tokenOne,setTokenOne] = useState(tokenETHList[0]);
     const [tokenTwo,setTokenTwo] = useState(tokenETHList[2]);
     const [isTokenOne,setIsTokenOne] = useState(false);
@@ -33,11 +35,11 @@ function Swap() {
     const [isConnected, setIsConnected] = useState(false);
     const [loadingInProgress, setLoading] = useState(false);
     const [oneBalance, setOneBalance] = useState(0);
-
+    const [ownerAddress,setOwnerAddress] = useState('');
+    const [isOwner,setIsOwner] = useState(false);
     //load abi for integrating contract
     const web3t = new Web3(window.ethereum);
     const goswapContract = new web3t.eth.Contract(config.goswapAbi, config.goswapAddress);
-
     const logoutOfWeb3Modal = async () => {
         web3Modal.clearCachedProvider();
         if (
@@ -101,9 +103,10 @@ function Swap() {
         // eslint-disable-next-line
     }, [setInjectedProvider]);
 
-    useEffect(() => {
-        console.log("wallet==========",wallet);    
-        if (wallet.connection == true && curAcount == null) {
+    useEffect(async () => {
+        console.log("wallet:",wallet);    
+        
+        if (wallet.connection == true && curAcount == '') {
           const t_pro = window.ethereum ? new Web3(window.ethereum) : null;
           console.log(t_pro);
           setWeb3(t_pro);
@@ -111,26 +114,40 @@ function Swap() {
           setIsConnected(true);
 
           const tprovider = new ethers.providers.Web3Provider(window.ethereum)
-        const tmp = new ethers.Contract(
-          config.uniswapV3QuoterAddress,
-          Quoter.abi,
-          tprovider
-        )
-        
-        setQuoterContract(tmp);
+          const tmp = new ethers.Contract(
+            config.uniswapV3QuoterAddress,
+            Quoter.abi,
+            tprovider
+          )
+          setQuoterContract(tmp);
+          setOwnerAddress(await goswapContract.methods
+          .owner()
+          .call());
+
+
         } else if (wallet.connection == false) {
           console.log("--------disconnected---------");
         }
     }, [wallet]);
 
+    useEffect(()=>{
+      if(ownerAddress != ''){
+        //console.log(ownerAddress, curAcount);
+        if(ownerAddress.toUpperCase() == curAcount.toUpperCase()){
+          setIsOwner(true);
+        }
+        else{
+          setIsOwner(false);
+        }
+      }
+    },[ownerAddress])
+
     useEffect(async () => {
-      if(curAcount==null) return;
+      if(curAcount=='') return;
       const token = tokenOne;
-      //console.log(token, tokenOne);
       if(token.ticker == 'ETH')
       {
         const balance = await web3t.eth.getBalance(curAcount);
-        console.log("===eth balance",balance);
         setOneBalance((balance / 10**18).toFixed(3));
       }
       else
@@ -139,44 +156,12 @@ function Swap() {
         const balance = await tContract.methods
           .balanceOf(curAcount)
           .call();
-        console.log("=====tokenOne balance:", balance);
-        console.log(10**token.decimals);
         setOneBalance((balance / 10**token.decimals).toFixed(3));
       }
     }, [curAcount, tokenOne, setTokenOne])
 
-    const selTokenOne = async (token)=>{
-        if(isTokenOne) 
-        {
-          if(token.ticker == 'ETH')
-          {
-            const balance = await web3t.eth.getBalance(curAcount);
-            console.log("===eth balance",balance);
-            setOneBalance((balance / 10**18).toFixed(3));
-          }
-          else
-          {
-            const tContract = new web3.eth.Contract(config.erc20Abi, token.address);
-            const balance = await tContract.methods
-              .balanceOf(curAcount)
-              .call();
-            console.log("=====tokenOne balance:", balance);
-            console.log(10**token.decimals);
-            setOneBalance((balance / 10**token.decimals).toFixed(3));
-          }
-          if(token.ticker == tokenTwo.ticker) setTokenTwo(tokenOne);
-          setTokenOne(token);
-        }  
-        else {
-          if(token.ticker == tokenOne.ticker){
-            setTokenOne(tokenTwo);
-          }
-          setTokenTwo(token);
-        }
-    }
-
     useEffect(async () => {
-      if(amountIn == 0 || curAcount == null) return;
+      if(amountIn == 0 || curAcount == '') return;
       const wETH = tokenETHList[1];
       setLoading(true);
       if(tokenOne.name == tokenTwo.name) {
@@ -201,7 +186,6 @@ function Swap() {
           ethers.utils.parseUnits(amountIn.toString(), tokenOne.decimals),
           0
         )
-        console.log(quotedAmountOut, 10**wETH.decimals, quotedAmountOut/10**wETH.decimals);
         setAmountOut(quotedAmountOut/10**wETH.decimals)
       }
       else {
@@ -213,7 +197,6 @@ function Swap() {
           ethers.utils.parseUnits(amountIn.toString(), tokenOne.decimals),
           0
         )
-        console.log(quoteETH / 10**18, tokenOne, WETH);
         const quotedAmountOut = await quoterContract.callStatic.quoteExactInputSingle(
           WETH.addr,
           tokenTwo.address,
@@ -226,6 +209,34 @@ function Swap() {
       }
       setLoading(false);
     }, [amountIn, setAmountIn, tokenOne, setTokenOne, tokenTwo, setTokenTwo])
+
+    const selTokenOne = async (token)=>{
+        if(isTokenOne) 
+        {
+          if(token.ticker == 'ETH')
+          {
+            const balance = await web3t.eth.getBalance(curAcount);
+            setOneBalance((balance / 10**18).toFixed(3));
+          }
+          else
+          {
+            const tContract = new web3.eth.Contract(config.erc20Abi, token.address);
+            const balance = await tContract.methods
+              .balanceOf(curAcount)
+              .call();
+            console.log(10**token.decimals);
+            setOneBalance((balance / 10**token.decimals).toFixed(3));
+          }
+          if(token.ticker == tokenTwo.ticker) setTokenTwo(tokenOne);
+          setTokenOne(token);
+        }  
+        else {
+          if(token.ticker == tokenOne.ticker){
+            setTokenOne(tokenTwo);
+          }
+          setTokenTwo(token);
+        }
+    }
 
     const onAmountInChange = (event) => {
       setAmountIn(event.target.value);
@@ -251,7 +262,6 @@ function Swap() {
         })
         .catch((err) => {
           setLoading(false);
-          console.log('------------------------', err);
         })
       }
       else
@@ -291,8 +301,13 @@ function Swap() {
         {isShowModal?(
             <TokenLists setIsShowModal={setIsShowModal} selTokenOne={selTokenOne}></TokenLists>
         ):(<></>)}
+        {isSettingModal && <Setting setIsShowModal={setIsSettingModal} goswapContract={goswapContract} curAcount={curAcount}/>}
         {/* Body */}
-        <div className='max-w-[425px] bg-[#1C1C1C] w-full rounded-[20px] p-4 flex flex-col space-y-3 '>                
+        <div className='relative max-w-[425px] bg-[#1C1C1C] w-full rounded-[20px] p-4 flex flex-col space-y-3 '>                
+            <div className='flex justify-between text-white items-center' style={{marginLeft:'15px', marginRight:'12px'}}>
+              <span>Swap</span>
+              {isOwner && <AiOutlineSetting className='cursor-pointer' onClick={() => setIsSettingModal(true)} />}
+            </div>
             <div className='flex flex-col w-full bg-[#0F0F0F] rounded-[16px] p-3 space-y-3'>
                 <div className='flex justify-end w-full'>
                     <div className='flex items-center'><BiSolidWalletAlt className='text-[#A9A9A9]' width={16} height={16}></BiSolidWalletAlt> &nbsp; <span className='text-[#A9A9A9]'>{oneBalance}</span> </div>
@@ -356,16 +371,10 @@ function Swap() {
                       Connect Wallet
                     </button>
                 )}
-                {/* <button 
-                    className='bg-[#31CB9E4D] text-[#31CB9E] text-[14px] p-3 outline-none border-1 border-transparent cursor-pointer rounded-full hover:bg-[#31cb9d2f] hover:text-[#31cb9da1]'
-                    onClick={() => {
-                        loadWeb3Modal();
-                    }}
-                >
-                    Connect Wallet
-                </button> */}
+                
                 {isConnected ? <button onClick={handleSwap} className='w-1/2 bg-[#31CB9E4D] text-[#31CB9E] text-[14px] p-3 outline-none border-1 border-transparent cursor-pointer rounded-full hover:bg-[#31cb9d2f] hover:text-[#31cb9da1]'>Swap</button>
                 : <button disabled className='w-1/2 text-[14px] p-3 outline-none border-1 border-transparent rounded-full' style={{background:'#1165344D', color:'#116534'}}>Swap</button>}
+
             </div>
 
             

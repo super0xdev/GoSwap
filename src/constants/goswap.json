@@ -93,6 +93,16 @@
     "stateMutability": "nonpayable",
     "type": "function"
 }, {
+    "inputs": [{
+        "internalType": "uint8",
+        "name": "fee",
+        "type": "uint8"
+    }],
+    "name": "setTakerFee",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+}, {
     "inputs": [],
     "name": "swapRouter",
     "outputs": [{

@@ -19,8 +19,6 @@ export const WalletProvider = ({children}) => {
 
   const handleWallet = (value) => {
     const tmp = getInitialWallet();
-    console.log('---', value);
-    console.log('--tmp--', tmp);
     if(tmp.account == 'empty') {
         localStorage.setItem(T_KEY, JSON.stringify(value));
     } else {
